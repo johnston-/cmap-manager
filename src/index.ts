@@ -12,10 +12,14 @@
 	}
 
 	interface Node {
-		id: string,
+		id?: string,
 		type: string,
 		value: string,
-		[propName: string]: any
+		x?: number,
+		y?: number,
+		fx?: number,
+		fy?: number
+		//[propName: string]: any
 	}
 
 	interface Link {
@@ -26,16 +30,9 @@
 		[propName: string]: any
 	}
 
-	interface SCNode {
-		nodeId: string,
-		nodeValue: string
-	}
-
-	type RawTriple = [string, string, string];
-
 	export interface Triple {
 		id: string,
-		value: RawTriple,
+		value: Array<string>,
 		config: TripleConfig
 	}
 
@@ -70,7 +67,6 @@ export class CmapManager {
 	TRIPLES: Array<Triple> = []
 	NODES: Array<Node> = []
 	LINKS: Array<Link> = []
-	SC: SCNode = {nodeValue: "", nodeId: ""};
 
 	IDMAP: IDMap = {}
 	LOG: Array<any> = []
@@ -80,14 +76,11 @@ export class CmapManager {
 	// GET
 		getNodes(): Array<Node> { return this.NODES }
 		getLinks(): Array<Link> { return this.LINKS }
-		getTriples(): Array<Triple> { return this.TRIPLES }
-		getSuperConcept(): SCNode { return this.SC }
+		getTriples(): Array<Triple> { return this.TRIPLES }		
 		getLog() { return this.LOG }
 		getGraphObject(): Cmap {
 			// to remove duplicates
-			//this.NODES = this.NODES
-			//this.LINKS = this.LINKS
-			//this.TRIPLES = this.TRIPLES.map(triple => [triple.id, triple])).values()]
+
 			return {
 				nodes: this.NODES,
 				links: this.LINKS,
@@ -107,10 +100,6 @@ export class CmapManager {
 		}
 		
 	// SET
-		setSuperConcept(value, nodeId) {
-			this.SC.nodeId = nodeId; 
-			this.SC.nodeValue = value; 
-		}
 
 		setNodes(newNodes): CmapManager {
 			this.NODES = newNodes.map(x => getNewNode(x));
@@ -119,37 +108,14 @@ export class CmapManager {
 			return this;
 		}
 	
-		loadTriples(rawTriples) : CmapManager {
-			//let [nodes, links, triples] = this.setMetadata(rawTriples)
-			let formattedSimpleTriples = preformatSimpleTriples(rawTriples);
-			let cmap = getCmapFromSimpleTriples(formattedSimpleTriples);
+		loadTriples(s: Array<[string, string, string]>): CmapManager {
+			//let [nodes, links, triples] = this.setMetadata(Array<string>s)
+			preformatSimpleTriples(s);
+			let cmap = getCmapFromSimpleTriples(s);
 			this.NODES = cmap.nodes;
-			this.NODES.forEach(node => {
-				node["settings"] = node["settings"] || {};
-				Object.assign(node["settings"], {
-					"dim": false,
-					"superConcept-initial": false,
-					"superConcept-select": false,
-					"SKEItemNumber": [],
-					"disconnectedNode": false,
-					"missingText": false,
-					"incompleteProps": false,
-					"superConcept-map": false,
-					"pronoun": false
-				})
-			});
-			
-			//this.NODES.forEach(n => n.value = n.value.replace(/\s+/g, " "));
-			this.LINKS = cmap.links;
-			this.LINKS.forEach(link => {
-				link["settings"] = link["settings"] || {}
-				Object.assign(link["settings"], {
-					"dim": false,
-					"superConcept-select": false,
-					"undefinedNode": false
-				})
-			});
+			this.LINKS = cmap.links;			
 			this.TRIPLES = cmap.triples;
+
 			return this
 		}
 
@@ -396,20 +362,6 @@ export class CmapManager {
       	commitLog(this, actions)	
 			}
 		}
-
-		updateNodeSettings(nodes){
-			// this.NODES = nodes;
-			this.NODES.forEach(n => {
-				n.settings = nodes.find(node => node.id == n.id).settings;
-			})
-		}
-
-		updateLinkSettings(links){
-			// this.LINKS = links;
-			this.LINKS.forEach(l => {
-				l.settings = links.find(link => link.id == l.id).settings;
-			})
-		}
 	
 		updateTriplesValue(triples){
 			triples.forEach(triple => {
@@ -459,7 +411,7 @@ export class CmapManager {
 			commitLog(this, actions);
 		}
 
-		addTriples(newTriples: Array<RawTriple>): CmapManager {
+		addTriples(newTriples: Array<Array<string>>): CmapManager {
 			//newTriples.forEach(x => this.addTriple(x))
 			return this
 		}
@@ -535,7 +487,7 @@ export class CmapManager {
 				return no
 			}
 
-			addPropositionFromConcepts(sourceNode, targetNode, mx, my) {
+			addPropositionFromConcepts(sourceNode: Node, targetNode: Node, mx: number, my: number) {
 				let nlp = getNewNode({type: "relation", value: "???", x: mx, y: my})
 				let ns = getNewLink({source: sourceNode, target: nlp, type: "source"})
 				let nt = getNewLink({source: nlp, target: targetNode, type: "target"})
@@ -550,7 +502,7 @@ export class CmapManager {
 				return nlp
 			}
 
-			addPropositionFromSingleConcept(sourceNode, tx, ty) {
+			addPropositionFromSingleConcept(sourceNode: Node, tx, ty) {
 				let [mx, my] = getMidpoint(sourceNode.x, sourceNode.y, tx, ty);
 				let no = getNewNode({type: "concept", value: "???", x: tx, y: ty});
 				let nlp = getNewNode({type: "relation", value: "???", x: mx, y: my});
@@ -698,7 +650,7 @@ export class CmapManager {
 				let ot = this.TRIPLES.find(x => x.id === t.id) //actual triple present
 				if(ot.value[1] !== t.predicate){
 					// console.log("ot: ", ot, " t: ", t);
-					let nt: RawTriple;
+					let nt: Array<string>;
 					if(ruleType == "semantic_similarity") nt = [ot.value[0], lxsm.word, ot.value[2]];
 					else nt = [t.subject, t.predicate, t.object];
 					
@@ -825,9 +777,8 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 	}
 
 // PROCESS
-	function preformatSimpleTriples(rawTriples: Array<[string, string, string]>): Array<[string, string, string]> {
-		rawTriples.forEach(x => x.forEach(v => {v = v.replace(/\s+/g, " ")}))
-		return rawTriples
+	function preformatSimpleTriples(rawTriples: Array<[string, string, string]>): void {
+		rawTriples.forEach(x => x.forEach(v => {v = v.replace(/\s+/g, " ")}));
 	}
 
 	function processIDMap(metaTriples: Array<Triple>) : [Array<Node>, Array<Link>] {
@@ -897,7 +848,15 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 	}
 
 	function getCmapFromSimpleTriples(triples: Array<[string, string, string]>): Cmap {
-		let metaTriples = triples.map(x => ({id: getGraphId("t"), value: x, config: {subId: undefined, relId: undefined, objId: undefined, sourceId: undefined, targetId: undefined, fork: undefined, join: undefined}}))
+		let metaTriples = triples.map(x => ({
+			id: getGraphId("t"), 
+			value: x, 
+			config: {
+				subId: undefined, relId: undefined, objId: undefined,
+				sourceId: undefined, targetId: undefined, 
+				fork: undefined, join: undefined
+			}
+		}))
 
 		//concepts
 		let nm = metaTriples.reduce((s,c) => {
@@ -952,12 +911,16 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 			})
 
 		let [nodes, links] = processIDMap(metaTriples)
-		//console.log("getCmapFromSimpleTriples", nodes, links)
-		return {nodes: nodes, links: links, triples: metaTriples}
+		
+		return {
+			nodes: nodes,
+			links: links, 
+			triples: metaTriples
+		}
 	}
 
 // NEW
-	function getNewNode(config) : Node {
+	function getNewNode(config: Node) : Node {
 		return {
 			id: config.id || getGraphId(),
 			type: config.type,
@@ -965,9 +928,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 			x: config.x,
 			y: config.y,
 			fx: config.fx,
-			fy: config.fy,
-			settings: {"dim": false, "superConcept-initial": false, "superConcept-select": false, "SKEItemNumber": [], "disconnectedNode": false, "missingText": false, "incompleteProps": false, "superConcept-map": false, "pronoun": false},
-			reusable: config.reusable
+			fy: config.fy
 		};
 	}
 
@@ -976,8 +937,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 			id: getGraphId(),
 			type: config.type,
 			source: findLinkId(config.source),
-			target: findLinkId(config.target),
-			settings: {"dim": false, "superConcept-select": false, "undefinedNode": false}
+			target: findLinkId(config.target)
 		};
 	}
 
@@ -1110,13 +1070,13 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 // UNDO
 
 // TRIPLE ACTIONS
-	function getTripleActions(that, newRawTriple: Array<string>, cmap: Cmap, config?: TripleConfig): Array<GraphAction> {
+	function getTripleActions(that, newTripleArray: Array<string>, cmap: Cmap, config?: TripleConfig): Array<GraphAction> {
 		let actions = [];
 
 		if(config){
 			let sub: any;
 			if(!config.subId){
-				let newSub = getNewNode({type: "concept", value: newRawTriple[0]});
+				let newSub = getNewNode({type: "concept", value: newTripleArray[0]});
 				actions.push([GraphActionType.addNode, newSub])
 				sub = newSub;
 				config.subId = sub.id;
@@ -1124,7 +1084,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 			else sub = cmap.nodes.find(x => x.id == config.subId);
 			let obj: any;
 			if(!config.objId){
-				let newObj = getNewNode({type: "concept", value: newRawTriple[2]});
+				let newObj = getNewNode({type: "concept", value: newTripleArray[2]});
 				actions.push([GraphActionType.addNode, newObj])
 				obj = newObj;
 				config.objId = obj.id;
@@ -1132,7 +1092,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 			else obj = cmap.nodes.find(x => x.id == config.objId);
 			let rel: any;
 			if(!config.relId){
-				let newRel = getNewNode({type: "relation", value: newRawTriple[1]});
+				let newRel = getNewNode({type: "relation", value: newTripleArray[1]});
 				actions.push([GraphActionType.addNode, newRel])
 				rel = newRel;
 				config.relId = rel.id;
@@ -1152,31 +1112,31 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 				actions.push([GraphActionType.addLink, newTarget]);
 			}
 
-			let newTriple: Triple = getNewTriple({value: newRawTriple, config: config});
+			let newTriple: Triple = getNewTriple({value: newTripleArray, config: config});
 			actions.push([GraphActionType.addTriple, newTriple]);
 		}
 		else{
 			//console.log(cmap.nodes);
-			let sub = findNodeByValue(cmap, newRawTriple[0], "concept")
+			let sub = findNodeByValue(cmap, newTripleArray[0], "concept")
 			//console.log(sub);
 			if(!sub) {
-				let newSub = getNewNode({type: "concept", value: newRawTriple[0]});
+				let newSub = getNewNode({type: "concept", value: newTripleArray[0]});
 				actions.push(["add node", newSub])
 				sub = newSub;
 			}
-			let obj = findNodeByValue(cmap, newRawTriple[2], "concept");
+			let obj = findNodeByValue(cmap, newTripleArray[2], "concept");
 			if(!obj){
-				let newObj = getNewNode({type: "concept", value: newRawTriple[2]});
+				let newObj = getNewNode({type: "concept", value: newTripleArray[2]});
 				actions.push(["add node", newObj])
 				obj = newObj;
 			}
 			let sourceLink; let targetLinks;
-			if(newRawTriple[0] != '???' && newRawTriple[1] != '???') sourceLink = findLinkByValue(cmap, newRawTriple[0], newRawTriple[1]);
-			if(newRawTriple[1] != '???' && newRawTriple[2] != '???') targetLinks = findLinksByValue(cmap, newRawTriple[1], newRawTriple[2]);
+			if(newTripleArray[0] != '???' && newTripleArray[1] != '???') sourceLink = findLinkByValue(cmap, newTripleArray[0], newTripleArray[1]);
+			if(newTripleArray[1] != '???' && newTripleArray[2] != '???') targetLinks = findLinksByValue(cmap, newTripleArray[1], newTripleArray[2]);
 
 			//console.log(".", sourceLink, targetLinks)
 			
-			if(findTripleByValue(cmap, newRawTriple)){
+			if(findTripleByValue(cmap, newTripleArray)){
 				//exists...
 			}
 			else if(sourceLink){
@@ -1188,17 +1148,17 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 				if(sourceTriples.length > 1){
 					// fork				
 					let newTarget: Link = getNewLink({type: "target", source: c.relId, target: obj.id});
-					let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: c.sourceId, targetId: newTarget.id, fork: true}})
+					let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: c.sourceId, targetId: newTarget.id, fork: true}})
 					actions.push(["add link", newTarget])
 					actions.push(["add triple", newTriple])
 				}
 				else {
 					if(c.join){
-						let newRelation: Node = getNewNode({type: "relation", value: newRawTriple[1]}) 
+						let newRelation: Node = getNewNode({type: "relation", value: newTripleArray[1]}) 
 						let newSource: Link = getNewLink({type: "source", source: sub.id, target: newRelation.id})
 						let newTarget: Link = getNewLink({type: "target", source: newRelation.id, target: obj.id})
 						let oldTarget: Link = getNewLink({type: "target", source: newRelation.id, target: c.objId})
-						let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id, fork: true}})
+						let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id, fork: true}})
 						actions.push(["add node", newRelation])
 						actions.push(["add link", newSource])
 						actions.push(["add link", newTarget])
@@ -1220,7 +1180,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 					}
 					else {
 						let newTarget: Link = getNewLink({type: "target", source: c.relId, target:  obj.id});
-						let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: c.sourceId, targetId: newTarget.id, fork: true}});
+						let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: c.sourceId, targetId: newTarget.id, fork: true}});
 						actions.push(["add link", newTarget])
 						actions.push(["add triple", newTriple])
 						actions.push(["update triple", sourceTriples[0].id, "fork", true])
@@ -1237,7 +1197,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 					//look for join
 					let cc = targetTriples.find(x => x.config.join || isTripleinJoin(x, cmap.triples)).config
 					let newSource: Link = getNewLink({type: "source", source: sub.id, target: cc.relId})
-					let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: cc.relId, objId: obj.id, sourceId: newSource.id, targetId: cc.targetId, join: true}})
+					let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: cc.relId, objId: obj.id, sourceId: newSource.id, targetId: cc.targetId, join: true}})
 					//actions.push(["add node", newRelation])
 					actions.push(["add link", newSource])
 					//actions.push(["add link", newTarget])
@@ -1245,12 +1205,12 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 				}
 				else if(c.join) {
 					//new relation
-					//let newRelation = getNewNode({type: "relation", value: newRawTriple[1]})
+					//let newRelation = getNewNode({type: "relation", value: newTripleArray[1]})
 					//let newSource: Link = getNewLink({type: "source", source: sub.id, target: newRelation.id})
 					let newSource: Link = getNewLink({type: "source", source: sub.id, target: c.relId})
 					//let newTarget: Link = getNewLink({type: "target", source: newRelation.id, target: obj.id})
-					//let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id, fork: true}})
-					let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: newSource.id, targetId: c.targetId, join: true}})
+					//let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id, fork: true}})
+					let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: newSource.id, targetId: c.targetId, join: true}})
 					//actions.push(["add node", newRelation])
 					actions.push(["add link", newSource])
 					//actions.push(["add link", newTarget])
@@ -1264,10 +1224,10 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 				}
 				else if(c.fork) {
 					// new relation
-					let newRelation = getNewNode({type: "relation", value: newRawTriple[1]})
+					let newRelation = getNewNode({type: "relation", value: newTripleArray[1]})
 					let newSource: Link = getNewLink({type: "source", source: sub.id, target: newRelation.id})
 					let newTarget: Link = getNewLink({type: "target", source: newRelation.id, target: obj.id})
-					let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id}})
+					let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id}})
 					actions.push(["add node", newRelation])
 					actions.push(["add link", newSource])
 					actions.push(["add link", newTarget])
@@ -1276,7 +1236,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 				else {
 					// create join
 					let newSource: Link = getNewLink({type: "source", source: sub.id, target: c.relId})
-					let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: newSource.id, targetId: c.targetId, join: true}})
+					let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: c.relId, objId: obj.id, sourceId: newSource.id, targetId: c.targetId, join: true}})
 					actions.push(["add link", newSource])
 					actions.push(["add triple", newTriple])
 					actions.push(["update triple", targetTriples[0].id, "join", true])
@@ -1284,10 +1244,10 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 				}
 			}
 			else {
-				let newRelation: Node = getNewNode({type: "relation", value: newRawTriple[1]})
+				let newRelation: Node = getNewNode({type: "relation", value: newTripleArray[1]})
 				let newSource: Link = getNewLink({type: "source", source: sub.id, target: newRelation.id})
 				let newTarget: Link = getNewLink({type: "target", source: newRelation.id, target: obj.id})
-				let newTriple: Triple = getNewTriple({value: newRawTriple, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id}})
+				let newTriple: Triple = getNewTriple({value: newTripleArray, config: {subId: sub.id, relId: newRelation.id, objId: obj.id, sourceId: newSource.id, targetId: newTarget.id}})
 
 				actions.push(["add node", newRelation])
 				actions.push(["add link", newSource])

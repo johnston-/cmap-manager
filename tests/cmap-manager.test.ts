@@ -21,3 +21,19 @@ test('add triple', () => {
   expect(cm.getLog()).toHaveLength(1);
   expect(cm.getLog().pop()).toHaveLength(6);
 })
+
+test('load triples', () => {
+  const cm = new CmapManager();
+
+  cm.loadTriples([
+    ["This", "or", "That"],
+    ["This", "cannot", "Be"],
+    ["Be", "rhymes with", "Bee"],
+    ["That", "is external to", "This"],
+    ["Be", "ever over", "That"],
+  ])
+
+  expect(cm.getNodes()).toHaveLength(9);
+  expect(cm.getLinks()).toHaveLength(10);
+  expect(cm.getTriples()).toHaveLength(5);
+})
