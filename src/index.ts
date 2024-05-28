@@ -405,14 +405,14 @@ export class CmapManager {
 	// ADD
 
 		// FROM TEXT
-		addTriple(rawTriple: Array<string>): void {
+		addTriple(rawTriple: [string, string, string]): void {
 			let newTriple = rawTriple.map(x => formatNodeText(x))
 			let actions = getTripleActions(this, newTriple, this.getGraphObject())
 			commitLog(this, actions);
 		}
 
-		addTriples(newTriples: Array<Array<string>>): CmapManager {
-			//newTriples.forEach(x => this.addTriple(x))
+		addTriples(newTriples: Array<[string, string, string]>): CmapManager {
+			newTriples.forEach(x => this.addTriple(x))
 			return this
 		}
 
@@ -713,7 +713,9 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 	}
 
 	function formatNodeText(rawText: string): string {
-		let formatted = rawText.toLowerCase()
+		// trim whitespace
+		let formatted = rawText.trim();
+
 		return formatted
 	}
 
