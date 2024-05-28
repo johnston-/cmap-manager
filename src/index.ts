@@ -1,4 +1,70 @@
+// MODELS
+	interface TripleConfig {
+		subId: string,      // subject id
+		relId: string,      // relationship id
+		objId: string,      // object id
+		sourceId: string,   // subject -> relationship link id
+		targetId: string,   // relationship -> target link id
+		fork?: boolean,     // true if this proposition shares relationship in a fork configuration
+		join?: boolean,     // true if this proposition shares relationship in a join configuration
+		style?: string      // used in composite maps
+		agreement?: number  // used in composite maps
+	}
 
+	interface Node {
+		id: string,
+		type: string,
+		value: string,
+		[propName: string]: any
+	}
+
+	interface Link {
+		id: string,
+		type: string,
+		source: any,
+		target: any,
+		[propName: string]: any
+	}
+
+	interface SCNode {
+		nodeId: string,
+		nodeValue: string
+	}
+
+	type RawTriple = [string, string, string];
+
+	export interface Triple {
+		id: string,
+		value: RawTriple,
+		config: TripleConfig
+	}
+
+	interface Cmap {
+		triples: Array<Triple>,
+		nodes: Array<Node>,
+		links: Array<Link>
+	}
+
+	interface ForkJoinData {
+		[index: string]: {members: Array<string>, source: string, target: string}
+	}
+
+	enum GraphActionType {
+		addNode = "add node",
+		addLink = "add link",
+		addTriple = "add triple",
+		removeNode = "remove node",
+		removeLink = "remove link",
+		removeTriple = "remove triple",
+		updateTriple = "update triple"
+	}
+
+	type GraphAction = [GraphActionType, any]
+
+	interface IDMap {
+		[index: string]: Node | Link
+	}
+	
 export class CmapManager {
 
 	TRIPLES: Array<Triple> = []
@@ -385,6 +451,8 @@ export class CmapManager {
 		}
 
 	// ADD
+
+		// FROM TEXT
 		addTriple(rawTriple: Array<string>): void {
 			let newTriple = rawTriple.map(x => formatNodeText(x))
 			let actions = getTripleActions(this, newTriple, this.getGraphObject())
@@ -402,100 +470,102 @@ export class CmapManager {
 			return this
 		}
 
-		addNewNode(config) {
-			let nn = getNewNode(config);
-			commitLog(this, [[GraphActionType.addNode, nn]])
-			return nn
-		}
+		// FROM GRAPH
 
-		addNewLink(config) {
-			let nl = getNewLink(config);
-			let log: any = [[GraphActionType.addLink, nl]];			
-
-			if(nl.type === "source"){
-				let targets = this.LINKS.filter(x => findLinkId(x.source) === findLinkId(config.target))
-				targets.map(tl => {
-					let sub = this.NODES.find(z => z.id === findLinkId(nl.source));
-					let rel = this.NODES.find(z => z.id === findLinkId(nl.target));
-					let obj = this.NODES.find(z => z.id === findLinkId(tl.target));
-
-					return getNewTriple({value: [sub.value, rel.value, obj.value], config: {subId: sub.id, relId: rel.id, objId: obj.id, sourceId: nl.id, targetId: tl.id}})
-				})
-					.forEach((x: Triple) => { log.push([GraphActionType.addTriple, x]) })
-			}
-			else if(nl.type === "target"){
-				let sources = this.LINKS.filter(x => findLinkId(x.target) === findLinkId(config.source))
-				sources.map(sl => {
-					let sub = this.NODES.find(z => z.id === findLinkId(sl.source));
-					let rel = this.NODES.find(z => z.id === findLinkId(nl.source));
-					let obj = this.NODES.find(z => z.id === findLinkId(nl.target));
-					return getNewTriple({value: [sub.value, rel.value, obj.value], config: {subId: sub.id, relId: rel.id, objId: obj.id, sourceId: sl.id, targetId: nl.id}})
-				})
-					.forEach((x: Triple) => { log.push([GraphActionType.addTriple, x]) })
-				//console.log("sources", sources)
-			}
-			commitLog(this, log);
-			//this.newTripleCheck(nl)
-			return nl
-		}
-
-		addNewNodeAndLink(sourceNode, targetConfig) {
-			let lType = sourceNode.type == "concept" ? "source" : "target"
-			let no = getNewNode(targetConfig);
-			let nl = getNewLink({source: sourceNode, target: no, type: lType})
-
-			let log: any = [
-				[GraphActionType.addNode, no],
-				[GraphActionType.addLink, nl]
-			]
-
-			if(lType === "target"){
-				let sources = this.LINKS.filter(x => findLinkId(x.target) === sourceNode.id)
-				sources.map(sl => {
-					let sub = this.NODES.find(z => z.id === findLinkId(sl.source));
-					let rel = this.NODES.find(z => z.id === findLinkId(sl.target));
-
-					return getNewTriple({value: [sub.value, rel.value, no.value], config: {subId: sub.id, relId: rel.id, objId: no.id, sourceId: sl.id, targetId: nl.id}})
-				})
-					.forEach((x: Triple) => { log.push([GraphActionType.addTriple, x]) })
+			addNewNode(config) {
+				let nn = getNewNode(config);
+				commitLog(this, [[GraphActionType.addNode, nn]])
+				return nn
 			}
 
-			commitLog(this, log)
-			//this.newTripleCheck(nl)
-			return no
-		}
+			addNewLink(config) {
+				let nl = getNewLink(config);
+				let log: any = [[GraphActionType.addLink, nl]];			
 
-		addPropositionFromConcepts(sourceNode, targetNode, mx, my) {
-			let nlp = getNewNode({type: "relation", value: "???", x: mx, y: my})
-			let ns = getNewLink({source: sourceNode, target: nlp, type: "source"})
-			let nt = getNewLink({source: nlp, target: targetNode, type: "target"})
-			let nTrip = getNewTriple({value: [sourceNode.value, nlp.value, targetNode.value], config: {subId: sourceNode.id, relId: nlp.id, objId: targetNode.id, sourceId: ns.id, targetId: nt.id}})
-			commitLog(this, [
-				[GraphActionType.addNode, nlp],
-				[GraphActionType.addLink, ns],
-				[GraphActionType.addLink, nt],
-				[GraphActionType.addTriple, nTrip]
-			])
-			//this.newTripleCheck(nt)
-			return nlp
-		}
+				if(nl.type === "source"){
+					let targets = this.LINKS.filter(x => findLinkId(x.source) === findLinkId(config.target))
+					targets.map(tl => {
+						let sub = this.NODES.find(z => z.id === findLinkId(nl.source));
+						let rel = this.NODES.find(z => z.id === findLinkId(nl.target));
+						let obj = this.NODES.find(z => z.id === findLinkId(tl.target));
 
-		addPropositionFromSingleConcept(sourceNode, tx, ty) {
-			let [mx, my] = getMidpoint(sourceNode.x, sourceNode.y, tx, ty);
-			let no = getNewNode({type: "concept", value: "???", x: tx, y: ty});
-			let nlp = getNewNode({type: "relation", value: "???", x: mx, y: my});
-			let ns = getNewLink({source: sourceNode, target: nlp, type: "source"});
-			let nt = getNewLink({source: nlp, target: no, type: "target"});
-			let nTrip = getNewTriple({value: [sourceNode.value, nlp.value, no.value], config: {subId: sourceNode.id, relId: nlp.id, objId: no.id, sourceId: ns.id, targetId: nt.id}})
-			commitLog(this, [
-				[GraphActionType.addNode, no],
-				[GraphActionType.addNode, nlp],
-				[GraphActionType.addLink, ns],
-				[GraphActionType.addLink, nt],
-				[GraphActionType.addTriple, nTrip]
-			])
-			return no
-		}
+						return getNewTriple({value: [sub.value, rel.value, obj.value], config: {subId: sub.id, relId: rel.id, objId: obj.id, sourceId: nl.id, targetId: tl.id}})
+					})
+						.forEach((x: Triple) => { log.push([GraphActionType.addTriple, x]) })
+				}
+				else if(nl.type === "target"){
+					let sources = this.LINKS.filter(x => findLinkId(x.target) === findLinkId(config.source))
+					sources.map(sl => {
+						let sub = this.NODES.find(z => z.id === findLinkId(sl.source));
+						let rel = this.NODES.find(z => z.id === findLinkId(nl.source));
+						let obj = this.NODES.find(z => z.id === findLinkId(nl.target));
+						return getNewTriple({value: [sub.value, rel.value, obj.value], config: {subId: sub.id, relId: rel.id, objId: obj.id, sourceId: sl.id, targetId: nl.id}})
+					})
+						.forEach((x: Triple) => { log.push([GraphActionType.addTriple, x]) })
+					//console.log("sources", sources)
+				}
+				commitLog(this, log);
+				//this.newTripleCheck(nl)
+				return nl
+			}
+
+			addNewNodeAndLink(sourceNode, targetConfig) {
+				let lType = sourceNode.type == "concept" ? "source" : "target"
+				let no = getNewNode(targetConfig);
+				let nl = getNewLink({source: sourceNode, target: no, type: lType})
+
+				let log: any = [
+					[GraphActionType.addNode, no],
+					[GraphActionType.addLink, nl]
+				]
+
+				if(lType === "target"){
+					let sources = this.LINKS.filter(x => findLinkId(x.target) === sourceNode.id)
+					sources.map(sl => {
+						let sub = this.NODES.find(z => z.id === findLinkId(sl.source));
+						let rel = this.NODES.find(z => z.id === findLinkId(sl.target));
+
+						return getNewTriple({value: [sub.value, rel.value, no.value], config: {subId: sub.id, relId: rel.id, objId: no.id, sourceId: sl.id, targetId: nl.id}})
+					})
+						.forEach((x: Triple) => { log.push([GraphActionType.addTriple, x]) })
+				}
+
+				commitLog(this, log)
+				//this.newTripleCheck(nl)
+				return no
+			}
+
+			addPropositionFromConcepts(sourceNode, targetNode, mx, my) {
+				let nlp = getNewNode({type: "relation", value: "???", x: mx, y: my})
+				let ns = getNewLink({source: sourceNode, target: nlp, type: "source"})
+				let nt = getNewLink({source: nlp, target: targetNode, type: "target"})
+				let nTrip = getNewTriple({value: [sourceNode.value, nlp.value, targetNode.value], config: {subId: sourceNode.id, relId: nlp.id, objId: targetNode.id, sourceId: ns.id, targetId: nt.id}})
+				commitLog(this, [
+					[GraphActionType.addNode, nlp],
+					[GraphActionType.addLink, ns],
+					[GraphActionType.addLink, nt],
+					[GraphActionType.addTriple, nTrip]
+				])
+				//this.newTripleCheck(nt)
+				return nlp
+			}
+
+			addPropositionFromSingleConcept(sourceNode, tx, ty) {
+				let [mx, my] = getMidpoint(sourceNode.x, sourceNode.y, tx, ty);
+				let no = getNewNode({type: "concept", value: "???", x: tx, y: ty});
+				let nlp = getNewNode({type: "relation", value: "???", x: mx, y: my});
+				let ns = getNewLink({source: sourceNode, target: nlp, type: "source"});
+				let nt = getNewLink({source: nlp, target: no, type: "target"});
+				let nTrip = getNewTriple({value: [sourceNode.value, nlp.value, no.value], config: {subId: sourceNode.id, relId: nlp.id, objId: no.id, sourceId: ns.id, targetId: nt.id}})
+				commitLog(this, [
+					[GraphActionType.addNode, no],
+					[GraphActionType.addNode, nlp],
+					[GraphActionType.addLink, ns],
+					[GraphActionType.addLink, nt],
+					[GraphActionType.addTriple, nTrip]
+				])
+				return no
+			}
 
 		newTripleCheck(newLink){
 			console.log("check sub", findLinkId(newLink.source), this.NODES)
@@ -675,74 +745,6 @@ function commitLog(that, steps) {
 }
 
 function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
-
-
-// MODELS
-	interface TripleConfig {
-		subId: string,      // subject id
-		relId: string,      // relationship id
-		objId: string,      // object id
-		sourceId: string,   // subject -> relationship link id
-		targetId: string,   // relationship -> target link id
-		fork?: boolean,     // true if this proposition shares relationship in a fork configuration
-		join?: boolean,     // true if this proposition shares relationship in a join configuration
-		style?: string      // used in composite maps
-		agreement?: number  // used in composite maps
-	}
-
-	interface Node {
-		id: string,
-		type: string,
-		value: string,
-		[propName: string]: any
-	}
-
-	interface Link {
-		id: string,
-		type: string,
-		source: any,
-		target: any,
-		[propName: string]: any
-	}
-
-	interface SCNode {
-		nodeId: string,
-		nodeValue: string
-	}
-
-	type RawTriple = [string, string, string];
-
-	export interface Triple {
-		id: string,
-		value: RawTriple,
-		config: TripleConfig
-	}
-
-	interface Cmap {
-		triples: Array<Triple>,
-		nodes: Array<Node>,
-		links: Array<Link>
-	}
-
-	interface ForkJoinData {
-		[index: string]: {members: Array<string>, source: string, target: string}
-	}
-
-	enum GraphActionType {
-		addNode = "add node",
-		addLink = "add link",
-		addTriple = "add triple",
-		removeNode = "remove node",
-		removeLink = "remove link",
-		removeTriple = "remove triple",
-		updateTriple = "update triple"
-	}
-
-	type GraphAction = [GraphActionType, any]
-
-	interface IDMap {
-		[index: string]: Node | Link
-	}
 
 // UTILITIES
 	function getGraphId(type?: string) : string {
