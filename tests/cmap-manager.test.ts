@@ -1,10 +1,17 @@
 import { CmapManager } from '../src';
+//import * as CommonEnglish from './common_english.json';
+const CommonEnglish = require("./common_english.json");
 
 const DummyTriples: Array<[string, string, string]> = [
   ["This", "or", "That"],
   ["This", "cannot", "Be"],
   ["Be", "rhymes with", "Bee"]
 ]
+
+function dummyTripleGenerator(): Array<[string, string, string]> {
+  let letters = "abcdefghijklmnopqrstuv".split("");
+  return [["meow", "meow", "meow"]]
+}
 
 test('create new cmap-manager', () => {
   const result = new CmapManager();
