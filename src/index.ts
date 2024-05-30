@@ -67,8 +67,6 @@ export class CmapManager {
 	TRIPLES: Array<Triple> = []
 	NODES: Array<Node> = []
 	LINKS: Array<Link> = []
-
-	IDMAP: IDMap = {}
 	LOG: Array<any> = []
 
 	constructor(){}
@@ -79,19 +77,6 @@ export class CmapManager {
 		getTriples(): Array<Triple> { return this.TRIPLES }		
 		getLog() { return this.LOG }
 		getGraphObject(): Cmap {
-			// to remove duplicates
-
-			return {
-				nodes: this.NODES,
-				links: this.LINKS,
-				triples: this.TRIPLES
-			}
-		}
-		getGraphObject_(): Cmap {
-			// to remove duplicates
-			this.NODES = [...new Map(this.NODES.map(node => [node.id, node])).values()]
-			this.LINKS = [...new Map(this.LINKS.map(link => [link.id, link])).values()]
-			this.TRIPLES = [...new Map(this.TRIPLES.map(triple => [triple.id, triple])).values()]
 			return {
 				nodes: this.NODES,
 				links: this.LINKS,
@@ -120,43 +105,15 @@ export class CmapManager {
 		}
 
 		loadGraph(graphObject) : CmapManager {
-			this.NODES = graphObject.NODES;
-			this.NODES.forEach(node => node["settings"] = {"dim": false, "superConcept-initial": false, "superConcept-select": false, "SKEItemNumber": [], "disconnectedNode": false, "missingText": false, "incompleteProps": false, "superConcept-map": false, "pronoun": false});
-			this.NODES.forEach(n => n.value = n.value.replace(/\s+/g, " "));
+			this.NODES = graphObject.NODES;			
 			this.LINKS = graphObject.LINKS;
-			this.LINKS.forEach(link => link["settings"] = {"dim": false, "superConcept-select": false, "undefinedNode": false});
 			this.TRIPLES = graphObject.TRIPLES;
 			return this
 		}
 
 		loadCmap(graphObject) : CmapManager {
 			this.NODES = graphObject.nodes;
-			this.NODES.forEach(node => {
-				node["settings"] = node["settings"] || {};
-				Object.assign(node["settings"], {
-					"dim": false,
-					"superConcept-initial": false,
-					"superConcept-select": false,
-					"SKEItemNumber": [],
-					"disconnectedNode": false,
-					"missingText": false,
-					"incompleteProps": false,
-					"superConcept-map": false,
-					"pronoun": false
-				})
-			});
-			//this.NODES.forEach(n => n.value = n.value.replace(/\s+/g, " "));
-
 			this.LINKS = graphObject.links;
-			this.LINKS.forEach(link => {
-				link["settings"] = link["settings"] || {}
-				Object.assign(link["settings"], {
-					"dim": false,
-					"superConcept-select": false,
-					"undefinedNode": false
-				})
-			});
-
 			this.TRIPLES = graphObject.triples;	        
 			return this	
 		}
@@ -693,7 +650,7 @@ function commitAction(){
 function commitLog(that, steps) {
 	that.LOG.push(steps)
 	steps.forEach(x => { that.commitAction(x) });
-	console.log("current log:", that.LOG)
+	//console.log("current log:", that.LOG)
 }
 
 function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
@@ -780,7 +737,7 @@ function getMidpoint (x1,y1,x2,y2){ return [(x1+x2)/2,(y1+y2)/2]; };
 
 // PROCESS
 	function preformatSimpleTriples(rawTriples: Array<[string, string, string]>): void {
-		rawTriples.forEach(x => x.forEach(v => {v = v.replace(/\s+/g, " ")}));
+		rawTriples.forEach(x => x.forEach(v => {v = v.replace(/\s+/g, " ").trim()}));
 	}
 
 	function processIDMap(metaTriples: Array<Triple>) : [Array<Node>, Array<Link>] {
